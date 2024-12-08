@@ -164,43 +164,28 @@ class PacmanQAgent(QLearningAgent):
     return action
 
 
+from featureExtractors import IdentityExtractor, SimpleExtractor
+
 class ApproximateQAgent(PacmanQAgent):
-  """
-     ApproximateQLearningAgent
+    def __init__(self, extractor='IdentityExtractor', **args):
+        PacmanQAgent.__init__(self, **args)
+        # Convert the extractor string to the actual class
+        extractors = {
+            'IdentityExtractor': IdentityExtractor,
+            'SimpleExtractor': SimpleExtractor
+        }
+        self.featExtractor = extractors[extractor]()
+        self.weights = util.Counter()
 
-     You should only have to overwrite getQValue
-     and update.  All other QLearningAgent functions
-     should work as is.
-  """
-  def __init__(self, extractor='IdentityExtractor', **args):
-    self.featExtractor = util.lookup(extractor, globals())()
-    PacmanQAgent.__init__(self, **args)
+    def getQValue(self, state, action):
+        features = self.featExtractor.getFeatures(state, action)
+        return sum([self.weights[feature] * value for feature, value in features.items()])
 
-    # You might want to initialize weights here.
-    "*** YOUR CODE HERE ***"
+    def update(self, state, action, nextState, reward):
+        features = self.featExtractor.getFeatures(state, action)
+        q_value = self.getQValue(state, action)
+        next_q_value = self.getValue(nextState)
+        difference = (reward + self.discount * next_q_value) - q_value
+        for feature, value in features.items():
+            self.weights[feature] += self.alpha * difference * value
 
-  def getQValue(self, state, action):
-    """
-      Should return Q(state,action) = w * featureVector
-      where * is the dotProduct operator
-    """
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
-
-  def update(self, state, action, nextState, reward):
-    """
-       Should update your weights based on transition
-    """
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
-
-  def final(self, state):
-    "Called at the end of each game."
-    # call the super-class final method
-    PacmanQAgent.final(self, state)
-
-    # did we finish training?
-    if self.episodesSoFar == self.numTraining:
-      # you might want to print your weights here for debugging
-      "*** YOUR CODE HERE ***"
-      pass
