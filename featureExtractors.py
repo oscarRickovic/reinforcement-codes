@@ -50,39 +50,67 @@ def closestFood(pos, food, walls):
 
 class SimpleExtractor(FeatureExtractor):
   """
-  Returns simple features for a basic reflex Pacman:
-  - whether food will be eaten
-  - how far away the next food is
-  - whether a ghost collision is imminent
-  - whether a ghost is one step away
+  Returns enhanced features for a smarter Pac-Man:
+  - Whether food will be eaten
+  - How far away the next food is
+  - Whether a ghost collision is imminent
+  - Whether a ghost is one step away
+  - Distance to the closest capsule
+  - Detection of edible ghosts and their distances
   """
   
   def getFeatures(self, state, action):
-    # extract the grid of food and wall locations and get the ghost locations
-    food = state.getFood()
-    walls = state.getWalls()
-    ghosts = state.getGhostPositions()
+      # Extract the grid of food and wall locations and get the ghost locations
+      food = state.getFood()
+      walls = state.getWalls()
+      capsules = state.getCapsules()
+      ghosts = state.getGhostStates()
 
-    features = util.Counter()
-    
-    features["bias"] = 1.0
-    
-    # compute the location of pacman after he takes the action
-    x, y = state.getPacmanPosition()
-    dx, dy = Actions.directionToVector(action)
-    next_x, next_y = int(x + dx), int(y + dy)
-    
-    # count the number of ghosts 1-step away
-    features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+      features = util.Counter()
+      features["bias"] = 1.0
 
-    # if there is no danger of ghosts then add the food feature
-    if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
-      features["eats-food"] = 1.0
-    
-    dist = closestFood((next_x, next_y), food, walls)
-    if dist is not None:
-      # make the distance a number less than one otherwise the update
-      # will diverge wildly
-      features["closest-food"] = float(dist) / (walls.width * walls.height) 
-    features.divideAll(10.0)
-    return features
+      # Compute the location of Pac-Man after the action
+      x, y = state.getPacmanPosition()
+      dx, dy = Actions.directionToVector(action)
+      next_x, next_y = int(x + dx), int(y + dy)
+
+      # Count the number of ghosts 1-step away
+      ghost_positions = [ghost.getPosition() for ghost in ghosts]
+      features["#-of-ghosts-1-step-away"] = sum(
+          (next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghost_positions
+      )
+
+      # Check for edible ghosts and their distances
+      edible_ghosts = [ghost for ghost in ghosts if ghost.scaredTimer > 0]
+      if edible_ghosts:
+          closest_edible_ghost_dist = min(
+              util.manhattanDistance((next_x, next_y), ghost.getPosition())
+              for ghost in edible_ghosts
+          )
+          features["closest-edible-ghost"] = float(closest_edible_ghost_dist) / (walls.width * walls.height)
+
+      # Add feature for eating food
+      if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
+          features["eats-food"] = 1.0
+
+      # Distance to the closest food
+      dist = closestFood((next_x, next_y), food, walls)
+      if dist is not None:
+          features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+      # Distance to the closest capsule
+      if capsules:
+          closest_capsule_dist = min(
+              util.manhattanDistance((next_x, next_y), c) for c in capsules
+          )
+          features["closest-capsule"] = float(closest_capsule_dist) / (walls.width * walls.height)
+
+      # Avoid ghosts by default
+      features["avoid-ghosts"] = 0.0
+      if features["#-of-ghosts-1-step-away"] > 0:
+          features["avoid-ghosts"] = 1.0
+
+      # Normalize feature values
+      features.divideAll(10.0)
+
+      return features
